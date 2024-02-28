@@ -1,80 +1,75 @@
-const { response, request } = require('express');
-const bcryptjs = require('bcryptjs');
-const User = require('../models/User');
+const { response, request } = require("express");
+const bcryptjs = require("bcryptjs");
+const User = require("../models/User");
 
 const getUsers = async (req = request, res = response) => {
+  const { limit = 5, from = 0 } = req.query;
+  const query = { status: true };
 
-    const { limit = 5, from = 0 } = req.query;
-    const query = { status: true };
+  const [total, users] = await Promise.all([
+    User.countDocuments(query),
+    User.find(query).skip(Number(from)).limit(Number(limit)),
+  ]);
 
-    const [total, users] = await Promise.all([
-        User.countDocuments(query),
-        User.find(query)
-            .skip(Number(from))
-            .limit(Number(limit))
-    ]);
+  res.json({
+    total,
+    users,
+  });
+};
 
-    res.json({
-        total,
-        users
-    });
-}
+const postUser = async (req = request, res = response) => {
+  const { name, email, password, role } = req.body;
+  const user = new User({ name, email, password, role });
 
-const postUser = async (req, res = response) => {
+  // Encriptar la contraseña
+  const salt = bcryptjs.genSaltSync();
+  user.password = bcryptjs.hashSync(password, salt);
 
-    const { name, email, password, role } = req.body;
-    const user = new User({ name, email, password, role });
+  // Guardar en BD
+  await user.save();
 
+  res.json({
+    user,
+  });
+};
+
+const putUser = async (req = request, res = response) => {
+  const { id } = req.params;
+  const { _id, password, google, email, ...rest } = req.body;
+
+  if (password) {
     // Encriptar la contraseña
     const salt = bcryptjs.genSaltSync();
-    user.password = bcryptjs.hashSync(password, salt);
+    rest.password = bcryptjs.hashSync(password, salt);
+  }
 
-    // Guardar en BD
-    await user.save();
+  const user = await User.findByIdAndUpdate(id, rest);
 
-    res.json({
-        user
-    });
-}
+  res.json(user);
+};
 
-const putUser = async (req, res = response) => {
+const patchUser = (req = request, res = response) => {
+  res.json({
+    msg: "patch API - patchUser",
+  });
+};
 
-    const { id } = req.params;
-    const { _id, password, google, email, ...rest } = req.body;
+const deleteUser = async (req = request, res = response) => {
+  const { id } = req.params;
 
-    if (password) {
-        // Encriptar la contraseña
-        const salt = bcryptjs.genSaltSync();
-        rest.password = bcryptjs.hashSync(password, salt);
-    }
+  const user = await User.findByIdAndUpdate(id, { status: false });
 
-    const user = await User.findByIdAndUpdate(id, rest);
+  // obtener usuario autenticado
 
-    res.json(user);
-}
+  const authUser = req.user;
 
-const patchUser = (req, res = response) => {
-    res.json({
-        msg: 'patch API - patchUser'
-    });
-}
-
-const deleteUser = async (req, res = response) => {
-
-    const { id } = req.params;
-
-    // Fisicamente lo borramos
-    // const user = await User.findByIdAndDelete( id );
-
-    const user = await User.findByIdAndUpdate(id, { status: false });
-
-    res.json(user);
-}
+  res.json({ user, authUser });
+};
 
 module.exports = {
-    getUsers,
-    postUser,
-    putUser,
-    patchUser,
-    deleteUser,
-}
+  getUsers,
+  postUser,
+  putUser,
+  patchUser,
+  deleteUser,
+};
